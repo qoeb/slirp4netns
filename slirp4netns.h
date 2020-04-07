@@ -15,6 +15,8 @@ struct slirp4netns_config {
 	bool disable_host_loopback;
 	bool enable_sandbox;
 	bool enable_seccomp;
+	struct in_addr outbound_addr;
+	struct in6_addr outbound_addr6;
 };
 int do_slirp(int tapfd, int readyfd, int exitfd, const char *api_socket, struct slirp4netns_config *cfg);
 

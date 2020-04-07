@@ -75,6 +75,12 @@ the capabilities except `CAP_NET_BIND_SERVICE` are dropped.
 enable **seccomp(2)** to limit syscalls.
 Typically used in conjunction with **--enable-sandbox**.
 
+**--outbound-ip=IP** (unreleased)
+bind to the specified address for outgoing traffic.
+
+**--outbound-ip6=IPv6** (unreleased)
+bind to the specified address for outgoing IPv6 traffic.
+
 **-h**, **--help** (since v0.2.0)
 show help and exit
 

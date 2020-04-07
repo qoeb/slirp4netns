@@ -268,6 +268,7 @@ static int parent(int sock, int ready_fd, int exit_fd, const char *api_socket,
     printf("* Gateway:         %s\n", inet_ntoa(cfg->vhost));
     printf("* DNS:             %s\n", inet_ntoa(cfg->vnameserver));
     printf("* Recommended IP:  %s\n", inet_ntoa(cfg->recommended_vguest));
+    printf("* Outgoing IP:     %s\n", inet_ntoa(cfg->outbound_addr));
     if (api_socket != NULL) {
         printf("* API Socket:      %s\n", api_socket);
     }
@@ -332,6 +333,9 @@ static void usage(const char *argv0)
         "caps except CAP_NET_BIND_SERVICE if running as the root)\n");
     printf("--enable-seccomp         enable seccomp to limit syscalls "
            "(experimental)\n");
+    /* outbound addr patch */
+    printf("--outbound-ip=IP         use this IP for outgoing traffic\n");
+    printf("--outbound-ip6=IPv6      use this IPv6 for outgoing traffic\n");
     /* others */
     printf("-h, --help               show this help and exit\n");
     printf("-v, --version            show version and exit\n");
@@ -363,6 +367,8 @@ struct options {
     char *userns_path; // --userns-path
     bool enable_sandbox; // --enable-sandbox
     bool enable_seccomp; // --enable-seccomp
+    char *outbound_addr; // --outbound-ip
+    char *outbound_addr6; // --outbound-ip6
 };
 
 static void options_init(struct options *options)
@@ -398,6 +404,14 @@ static void options_destroy(struct options *options)
         free(options->userns_path);
         options->userns_path = NULL;
     }
+    if (options->outbound_addr != NULL) {
+        free(options->outbound_addr);
+        options->outbound_addr = NULL;
+    }
+    if (options->outbound_addr6 != NULL) {
+        free(options->outbound_addr6);
+        options->outbound_addr6 = NULL;
+    }
 }
 
 // * caller does not need to call options_init()
@@ -411,12 +425,16 @@ static void parse_args(int argc, char *const argv[], struct options *options)
     char *optarg_netns_type = NULL;
     char *optarg_userns_path = NULL;
     char *optarg_api_socket = NULL;
+    char *optarg_outbound_ip = NULL;
+    char *optarg_outbound_ip6 = NULL;
 #define CIDR -42
 #define DISABLE_HOST_LOOPBACK -43
 #define NETNS_TYPE -44
 #define USERNS_PATH -45
 #define ENABLE_SANDBOX -46
 #define ENABLE_SECCOMP -47
+#define OUTBOUND_IP -48
+#define OUTBOUND_IP6 -49
 #define _DEPRECATED_NO_HOST_LOOPBACK \
     -10043 // deprecated in favor of disable-host-loopback
 #define _DEPRECATED_CREATE_SANDBOX \
@@ -436,6 +454,8 @@ static void parse_args(int argc, char *const argv[], struct options *options)
         { "enable-sandbox", no_argument, NULL, ENABLE_SANDBOX },
         { "create-sandbox", no_argument, NULL, _DEPRECATED_CREATE_SANDBOX },
         { "enable-seccomp", no_argument, NULL, ENABLE_SECCOMP },
+        { "outbound-ip", required_argument, NULL, OUTBOUND_IP },
+        { "outbound-ip6", required_argument, NULL, OUTBOUND_IP6 },
         { "help", no_argument, NULL, 'h' },
         { "version", no_argument, NULL, 'v' },
         { 0, 0, 0, 0 },
@@ -511,6 +531,12 @@ static void parse_args(int argc, char *const argv[], struct options *options)
                 goto error;
             }
             break;
+        case OUTBOUND_IP:
+            optarg_outbound_ip = optarg;
+            break;
+        case OUTBOUND_IP6:
+            optarg_outbound_ip6 = optarg;
+            break;
         case 'a':
             optarg_api_socket = optarg;
             break;
@@ -543,6 +569,12 @@ static void parse_args(int argc, char *const argv[], struct options *options)
     if (optarg_api_socket != NULL) {
         options->api_socket = strdup(optarg_api_socket);
     }
+    if (optarg_outbound_ip != NULL) {
+        options->outbound_addr = strdup(optarg_outbound_ip);
+    }
+    if (optarg_outbound_ip6 != NULL) {
+        options->outbound_addr6 = strdup(optarg_outbound_ip6);
+    }
 #undef CIDR
 #undef DISABLE_HOST_LOOPBACK
 #undef NETNS_TYPE
@@ -550,6 +582,8 @@ static void parse_args(int argc, char *const argv[], struct options *options)
 #undef _DEPRECATED_NO_HOST_LOOPBACK
 #undef ENABLE_SANDBOX
 #undef ENABLE_SECCOMP
+#undef OUTBOUND_IP
+#undef OUTBOUND_IP6
     if (argc - optind < 2) {
         goto error;
     }
@@ -684,6 +718,25 @@ static int slirp4netns_config_from_options(struct slirp4netns_config *cfg,
     cfg->disable_host_loopback = opt->disable_host_loopback;
     cfg->enable_sandbox = opt->enable_sandbox;
     cfg->enable_seccomp = opt->enable_seccomp;
+
+    if (opt->outbound_addr != NULL) {
+        if (inet_aton (opt->outbound_addr, &cfg->outbound_addr) == 0) {
+            rc = -1;
+            goto finish;
+        }
+    } else {
+        memset(&cfg->outbound_addr, 0, sizeof(struct in_addr));
+    }
+
+    if (opt->outbound_addr6 != NULL) {
+        if (inet_pton (AF_INET6, opt->outbound_addr6, &cfg->outbound_addr6) == 0) {
+            rc = -1;
+            goto finish;
+        }
+    } else {
+      memset(&cfg->outbound_addr6, 0, sizeof(struct in6_addr));
+    }
+
 finish:
     return rc;
 }

@@ -253,7 +253,7 @@ Slirp *create_slirp(void *opaque, struct slirp4netns_config *s4nn)
     Slirp *slirp = NULL;
     SlirpConfig cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.version = 1;
+    cfg.version = 2;
     cfg.restricted = 0;
     cfg.in_enabled = 1;
     cfg.vnetwork = s4nn->vnetwork;
@@ -275,6 +275,24 @@ Slirp *create_slirp(void *opaque, struct slirp4netns_config *s4nn)
     cfg.if_mtu = s4nn->mtu;
     cfg.if_mru = s4nn->mtu;
     cfg.disable_host_loopback = s4nn->disable_host_loopback;
+
+    if (s4nn->outbound_addr.s_addr != 0) {
+        struct sockaddr_in *outbound_addr = malloc(sizeof (struct sockaddr_in));
+        outbound_addr->sin_family = AF_INET;
+        outbound_addr->sin_addr = s4nn->outbound_addr;
+        outbound_addr->sin_port = 0;
+        cfg.outbound_addr = outbound_addr;
+    }
+
+    struct in6_addr in6_zero = { 0 };
+    if (memcmp(&s4nn->outbound_addr6, &in6_zero, sizeof(struct in6_addr)) != 0) {
+        struct sockaddr_in6 *outbound_addr6 = malloc(sizeof (struct sockaddr_in6));
+        outbound_addr6->sin6_family = AF_INET6;
+        outbound_addr6->sin6_addr = s4nn->outbound_addr6;
+        outbound_addr6->sin6_port = 0;
+        cfg.outbound_addr6 = outbound_addr6;
+    }
+
     slirp = slirp_new(&cfg, &libslirp_cb, opaque);
     if (slirp == NULL) {
         fprintf(stderr, "slirp_new failed\n");
